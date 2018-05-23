@@ -5,6 +5,7 @@ import java.util.Arrays;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.Roi;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -24,6 +25,7 @@ public class Ins_seg_preprocessing {
 	private float inter_channel;//49.45f
 	private float roi_width;
 	private float channel_prefix_pos[];
+	private float[] dynamicInterChannelLength;
 	private Ins_param ins_param; 
 	private int height_align; 
 	
@@ -120,6 +122,110 @@ public class Ins_seg_preprocessing {
 			
 			ins_param.setPosition_l(new int[img.getStackSize()]);
 			ins_param.setPosition_h(new int[img.getStackSize()]);
+			ins_param.setPostion_x(new double[img.getStackSize()][]);
+			
+			
+			int pSize = 40;
+			
+			float[][] pos_refine_l = new float[pSize][];
+			float[][] pos_refine_r = new float[pSize][];
+			for (int i=1; i<=pSize; i++) {
+				IJ.showStatus("Cropping " + i + "/" + img.getStackSize() + 
+						" ... (Press 'ESC' to Cancel)");
+				if (IJ.escapePressed())
+					break;
+				ImageProcessor ip = img.getImageStack().getProcessor(i);
+				ImagePlus[] eigenImp = (new featureJ.FJ_Structure()).getEigenImg(new ImagePlus("", ip),"8.0","3.0");
+				ImagePlus eigenLargestImp = eigenImp[0];
+				ImagePlus eigenSmallestImp = eigenImp[1];
+				
+				ShortProcessor spEigenLargest = eigenLargestImp.getProcessor().convertToShortProcessor();
+				int level = Auto_Threshold_v.getThreshold("Mean", spEigenLargest);
+				spEigenLargest.threshold(level);
+				ByteProcessor bpEigenLargest = spEigenLargest.convertToByteProcessor();
+				bpEigenLargest.autoThreshold();	
+								
+				if(i==-1)
+				{
+					new ImagePlus("", ip).duplicate().show();
+					eigenLargestImp.show();
+					eigenSmallestImp.show();
+					System.out.println("mean level : " + level);
+					new ImagePlus("triangle threshold", bpEigenLargest).show();
+				}				
+				double ratio = 0.2;
+				int position_v = startY_ref;
+				if(startY_ref>0)
+				{
+					int position_v0 = (int)(startY_ref-height_align*ratio >0? startY_ref - height_align*ratio:0);
+					for(int v=position_v0;v<startY_ref + height_align; v++)
+					{
+						int countZero = 0;
+						if(v<0 || v>=height)
+							continue;						
+						for(int u=startX_ref*3;u<width*0.8;u++)
+						{
+							if(u<0 || u>= width)
+								continue;							
+							if(bpEigenLargest.get(u, v) == 255)
+								countZero ++;
+						}
+						if (countZero > 100)
+						{
+							position_v = v;
+							System.out.println("	slice - " +i+" find position y: " + position_v);
+							break;
+						}
+					}
+				}else {
+					position_v = Math.abs(position_v);
+				}
+				bpEigenLargest.setRoi(0, position_v, width, (int)(height_align));										
+				ImageProcessor ip_y0 = bpEigenLargest.crop();
+				ImageProcessor ip_y1 = bpEigenLargest.crop();																		
+				ip_y0.convolve(Gx, 3, 3);
+				ip_y1.convolve(Gx2, 3, 3);
+				pos_refine_l[i-1] = refinePosition(ip_y0, startX_ref);
+				pos_refine_r[i-1] = refinePosition(ip_y1,  (int)(startX_ref+0.5*roi_width));//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
+				
+			}
+			
+			float[][] xDiff = new float[pos_refine_l[0].length-1][width];
+			
+			for(int i=0;i<pSize; i++)
+			{
+				//xDiff[(int)pos_refine_l[i][0]]++;
+				//xDiff[(int)pos_refine_r[i][0]]++;
+				for(int j=0; j<pos_refine_l[i].length-1;j++)
+				{
+					float diff = pos_refine_l[i][j+1]-pos_refine_l[i][j];
+					xDiff[j][(int)(diff)]++;
+					diff = pos_refine_r[i][j+1]-pos_refine_r[i][j];
+					xDiff[j][(int)(diff)]++;					
+				}
+			}
+			
+			float[] xDiff_max = new float[xDiff.length];
+			for(int i=0; i<xDiff.length;i++)
+			{
+				System.out.println("diff i : "+ i );
+				int max_diff = -1;
+				for(int j=0; j<xDiff[i].length;j++)
+				{
+					if(xDiff[i][j] > 0)
+					{
+						if(xDiff[i][j]>max_diff)
+						{
+							max_diff = (int)xDiff[i][j];
+						}
+					}	
+				}
+				xDiff_max[i] = max_diff;
+				System.out.println("inter distance : " + max_diff);
+			}
+			ins_param.compute_channel_prefix_pos(xDiff_max);
+			
+				
 			
 			for (int i=1; i<=img.getStackSize(); i++) {
 				IJ.showStatus("Cropping " + i + "/" + img.getStackSize() + 
@@ -136,9 +242,7 @@ public class Ins_seg_preprocessing {
 				spEigenLargest.threshold(level);
 				ByteProcessor bpEigenLargest = spEigenLargest.convertToByteProcessor();
 				bpEigenLargest.autoThreshold();	
-				
-				
-				
+								
 				if(i==-1)
 				{
 					new ImagePlus("", ip).duplicate().show();
@@ -182,8 +286,8 @@ public class Ins_seg_preprocessing {
 				
 				
 				
-				int pos_refine_l = refinePosition(ip_y0, startX_ref);//int pos_refine_l = refinePosition(ip_y0, startX_ref);
-				int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
+				float[] pos_refine_l = refinePosition(ip_y0, startX_ref);
+				float[] pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l[0]+0.3*roi_width));//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
 				
 				if(i==-1)
 				{
@@ -196,8 +300,16 @@ public class Ins_seg_preprocessing {
 					System.out.println("pos_l : " + pos_refine_l + " pos_r : " + pos_refine_r);
 				}
 				
-				double position_x= (pos_refine_l+pos_refine_r)*0.5;
-				ins_param.getPosition_l()[i-1] = (int)(position_x-roi_width/2 > 1 ? position_x-roi_width/2:1);
+				double[] position_x = new double[pos_refine_l.length];
+				for(int m=0;m<pos_refine_l.length;m++)
+				{
+					position_x[m]= (pos_refine_l[m]+pos_refine_r[m])*0.5;
+					System.out.println("x[m]: "+ " m: " + m + " x : "+ position_x[m]);
+				}
+				//ins_param.getPosition_l()[i-1] = pos_refine_l[0];
+				
+				ins_param.getPosition_l()[i-1] = (int)(position_x[0]-roi_width/2 > 0 ? position_x[0]-roi_width/2:0);
+				ins_param.getPostion_x()[i-1] = position_x;
 				if(position_v + height_align > ip.getHeight())
 				{
 					position_v = ip.getHeight() - height_align;
@@ -205,7 +317,7 @@ public class Ins_seg_preprocessing {
 				ins_param.getPosition_h()[i-1] = position_v;
 				
 				if(i==1) // compute only once
-					refinePositionChannelHead(ins_param, eigenSmallestImp, (int)position_x, position_v);
+					refinePositionChannelHead(ins_param, eigenSmallestImp, position_x, position_v);
 				
 				ip.setRoi(ins_param.getPosition_l()[i-1], ins_param.getPosition_h()[i-1], width_align, height_align);	// 1 for more precision depends on experiments
 				ImageProcessor ip2 = ip.crop();					
@@ -216,12 +328,13 @@ public class Ins_seg_preprocessing {
 				}
 				imp_crop.addSlice(img.getStack().getSliceLabel(i), ip2);
 			}
-			return new ImagePlus("", imp_crop);
-		
+			ImagePlus imp = new ImagePlus("PRE-CROP", imp_crop);
+			imp.show();
+			return imp;
 	}
 	
 	
-	private void refinePositionChannelHead(Ins_param ins_param,ImagePlus smallestEigenImp, float position_c, float position_y) 
+	private void refinePositionChannelHead(Ins_param ins_param,ImagePlus smallestEigenImp, double[] position_c, float position_y) 
 	{
 		ShortProcessor spEigenSmallest = smallestEigenImp.getProcessor().convertToShortProcessor();
 		int level = Auto_Threshold_v.getThreshold("Mean", spEigenSmallest);
@@ -229,19 +342,22 @@ public class Ins_seg_preprocessing {
 		ByteProcessor bpEigenSmallest = spEigenSmallest.convertToByteProcessor();
 		bpEigenSmallest.autoThreshold();	
 		
-		float[] channel_prefix_pos = ins_param.getchannel_prefix_pos();
+		//float[] channel_prefix_pos = ins_param.getchannel_prefix_pos();
 		ImageProcessor ip = bpEigenSmallest;
 		double ratio = 0.2;
-		int[] relative_headPosition = new int[channel_prefix_pos.length/2];
+		int[] relative_headPosition = new int[position_c.length];
 		
 		int heightAlignMin = height_align;
 		
-		for(int i=0,j=0;i<channel_prefix_pos.length;i=i+2,j++)
+		for(int i=0,j=0;i<position_c.length;i++,j++)
 		{
-			int x = (int)(position_c + channel_prefix_pos[i] - roi_width*0.25);
+			int x = (int)(position_c[i] - roi_width*0.25);
 			int y = (int)(position_y-height_align*ratio);
 			double[] profile = getRowMedianProfile(new Rectangle(x, y, (int)(roi_width*0.5), (int)(2*height_align*ratio)), ip);
+			System.out.println("position i: "+i+" x: "+x);;
+			Roi r = new Roi(x, y, (int)(roi_width*0.5), (int)(2*height_align*ratio));
 			ip.setRoi(new Rectangle(x, y, (int)(roi_width*0.5), (int)(2*height_align*ratio)));
+			Ins_seg_panel.addRoiToManager(r);
 			ip.fill();
 			profile = diffArray(profile);			
 			Ins_find_peaks peakFinder = new Ins_find_peaks(20, 0);				
@@ -332,20 +448,19 @@ public class Ins_seg_preprocessing {
 	 * @param pos0 approximate position, should be computed using the function positionMaxhisto 
 	 * @return
 	 */
-	public int refinePosition(ImageProcessor ip , int startX_reference){
+	public float[] refinePosition(ImageProcessor ip , int startX_reference){
 		
 		//float channel_length=channel_prefix_pos[2]-channel_prefix_pos[0];//should be adjusted carefully		
 		int hist[];
 		int w=ip.getWidth();
 		int h=ip.getHeight();		
 		hist = new int[ip.getWidth()];
-		int first_left_center=0;
 		// compute the sum value along the horizontal axe
 		for(int u=0;u<w;u++)
 		{			
 			for(int v=0;v<h; v++)
 			{
-				for(int i=-1 ; i<=1 ; i++)
+				for(int i=-2 ; i<=2 ; i++)
 				{
 					if(u+i <0 || u+i >=w)
 						continue;
@@ -356,47 +471,29 @@ public class Ins_seg_preprocessing {
 		}		
 				
 		final int inter = (int)inter_channel/2;		
-		float difference = Float.MAX_VALUE;
-		for(int startX = startX_reference; startX < startX_reference+inter; startX++) //label 3
-		{			
-			float dis=0f;
-			int j = 0;
-			for(int i=0; i < channel_prefix_pos.length; i=i+2) // pay attention, here i should be i+2 don't consider all channels, because the last one may be flowed out
-			{
-				float position=channel_prefix_pos[i]+startX;
-				float max = 0f;
-				int max_j=0;
-				//now find the maximum around the "position" (range: inter) and
-				//put the distance in the "dis"
-				int j_l = -inter;
-				int j_r = inter;
-				
-				if(i==0)
-					j_l = 0;
-				
-				for(j=j_l; j <= j_r; j++)
+		
+		float[] dynamicStartX=new float[channel_prefix_pos.length/2];
+		
+		for(int p=0; p < channel_prefix_pos.length; p=p+2)
+		{
+			float startX_ref = channel_prefix_pos[p] + startX_reference;
+			int max_v = 0;
+			for(int startX = (int)(startX_ref - roi_width); startX < startX_ref+inter; startX++) //label 3
+			{			
+				if(startX < 0) 
+					continue;
+				if(startX >= hist.length)
+					continue;
+				int his = hist[(int)startX];
+				if(max_v < his)
 				{
-					if(position+j>=0 && position+j<hist.length)						
-						if(max < hist[(int)position+j])
-						{
-							max = hist[(int)position+j];
-							max_j=j;						
-						}		
-				}// now we have the the maximum local
-				dis=dis + max_j*max_j;
-				//System.out.println("StartX :  "+startX + " dis: "+dis + " i : "+i + " max_j :" + max_j);
+					max_v = his;
+					dynamicStartX[p/2] = startX;
+				}				
 			}
-			
-			// find the minimum difference of the index found and the prefixed index array 
-			if (difference > dis)
-			{
-				difference = dis;
-				first_left_center = startX;				
-				//System.out.println("StartX :  "+startX + " dis: "+dis);
-			}			
 		}
-		IJ.log("the minimum difference corresponds the first left center:  "+difference + " first_center: "+first_left_center);		
-		return first_left_center;
+		//IJ.log("the minimum difference corresponds the first left center:  "+difference + " first_center: "+first_left_center);		
+		return dynamicStartX;
 	}
 	
 	

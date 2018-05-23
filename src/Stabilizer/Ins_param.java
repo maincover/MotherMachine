@@ -24,6 +24,7 @@ public class Ins_param implements Serializable{
 		private int roi_width;
 		private int[][] y;
 		private float[] channel_prefix_pos;
+		private double[][] position_x;
 		private int[] relative_headPosition;
 		private int[] x_deplace;
 		private int blank_width;
@@ -31,6 +32,7 @@ public class Ins_param implements Serializable{
 		private int start_x;
 		private int start_y;
 		private float interChannelLength;
+		private float[] interDynamic;
 		private int channelNumber;
 		private boolean savedOnce;
 		private boolean sealedOffTop = true;
@@ -40,10 +42,28 @@ public class Ins_param implements Serializable{
 		public void compute_channel_prefix_pos()
 		{
 			channel_prefix_pos=new float[2*channelNumber];		
-			channel_prefix_pos[0]=0;		
+			channel_prefix_pos[0]=0;	
 			for(int i=2; i < channel_prefix_pos.length;i=i+2)
 			{
 				channel_prefix_pos[i] = channel_prefix_pos[i-2]+interChannelLength;
+			}
+			for(int i=1; i < channel_prefix_pos.length;i=i+2)
+			{
+				channel_prefix_pos[i] = channel_prefix_pos[i-1]+roi_width; 
+			}
+			int width_align=(int)(channel_prefix_pos[channel_prefix_pos.length-1]-channel_prefix_pos[0]);
+			setWidth_algin(width_align);
+		}
+		
+		public void compute_channel_prefix_pos(float[] interDynamic)
+		{
+			assert interDynamic.length == channelNumber-1;
+			channel_prefix_pos=new float[2*channelNumber];		
+			channel_prefix_pos[0]=0;	
+			this.interDynamic = interDynamic;
+			for(int i=2; i < channel_prefix_pos.length;i=i+2)
+			{
+				channel_prefix_pos[i] = channel_prefix_pos[i-2]+interDynamic[(i-2)/2];
 			}
 			for(int i=1; i < channel_prefix_pos.length;i=i+2)
 			{
@@ -308,6 +328,17 @@ public class Ins_param implements Serializable{
 
 		public void setRelative_headPosition(int[] relative_headPosition) {
 			this.relative_headPosition = relative_headPosition;			
+		}
+		
+
+
+		public double[][] getPostion_x() {
+			// TODO Auto-generated method stub
+			return position_x;
+		}
+		
+		public void setPostion_x(double[][] pos_x) {
+			this.position_x = pos_x;
 		}
 		
 //		public int[] getRelative_headPosition1()

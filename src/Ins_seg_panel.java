@@ -7069,7 +7069,7 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 		return roisArrayRois;
 	}
 	
-	public void addRoiToManager(Roi roi)
+	public static void addRoiToManager(Roi roi)
 	{
 		Frame frame = WindowManager.getFrame("ROI Manager");
 		if (frame==null)
