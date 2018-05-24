@@ -7042,7 +7042,8 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 			stabilizerLog.setuppRFP(param);
 			stabilizerLog.setup("", impRFP2cropOriginal);
 			stabilizerLog.run(impRFP2cropOriginal.getProcessor());
-		}		
+		}	
+		impRFP2cropOriginal.show();
 		ImagePlus rearrangedRFPOriginal = param.toSSImage(impRFP2cropOriginal);
 		return rearrangedRFPOriginal;	
 	}
