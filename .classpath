@@ -2,8 +2,8 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
-	<classpathentry kind="lib" path="/Users/songxiaohu/Downloads/ImageJ/ImageJ.app/Contents/Resources/Java/ij.jar"/>
 	<classpathentry kind="lib" path="/Users/songxiaohu/Documents/workspace/Externel Jar/imagescience.jar"/>
 	<classpathentry kind="lib" path="/Users/songxiaohu/Documents/workspace/Externel Jar/commons-math3-3.5/commons-math3-3.5.jar"/>
+	<classpathentry kind="lib" path="/Applications/ImageJ/ImageJ.app/Contents/Java/ij.jar" sourcepath="/Applications/ImageJ/source"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
