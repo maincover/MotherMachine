@@ -128,7 +128,7 @@ public class Ins_stabilizer {
         
         stackOut = new ImageStack(imp.getWidth(), imp.getHeight());
 
-        IJ.log("Start stabilizer run()");
+        //IJ.log("Start stabilizer run()");
         showProgress(0.0);
         if (!IJ.escapePressed()) {
             process(ipRef, current - 1, 1, -1, 1);
@@ -284,7 +284,7 @@ public class Ins_stabilizer {
                 ++tick;
             }
             else {
-            	IJ.log("Stabilizing " + slice + "/" + stackSize);
+            	//IJ.log("Stabilizing " + slice + "/" + stackSize);
                 IJ.showStatus("Stabilizing " + slice + "/" + stackSize);// + 
                     //" ... (Press 'ESC' to Cancel)");
 
@@ -293,8 +293,6 @@ public class Ins_stabilizer {
 
                 double[][] wp = null;
                 
-                
-
                 if (transform == TRANSLATION){
                     wp = estimateTranslation(
                         ipFloat, ipFloatRef, ipPyramid, ipRefPyramid, maxIter, tol);                                                           

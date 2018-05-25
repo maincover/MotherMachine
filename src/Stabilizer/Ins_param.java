@@ -2,6 +2,7 @@ package Stabilizer;
 
 
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.ImageProcessor;
@@ -253,12 +254,13 @@ public class Ins_param implements Serializable{
 			ImageStack ims = new ImageStack(width, height_align_min, channel_prefix_pos.length/2);
 			int slice = 1;			
 			int channel = 0;
-			
 			for(int i=0,j=0;i<channel_prefix_pos.length-1;i=i+2,j++)
 			{
 				StackProcessor sp = new StackProcessor(img.getImageStack().duplicate(), null);
 				ImageProcessor ip = img.getProcessor().createProcessor(width,height_);
 				System.out.println("x_deplace : " + x_deplace[i] +" relative head : "+  relative_headPosition[j] + " height: " + height_ + " height_align "+ height_align_min);
+				int dist_inter = (int)(i+2<channel_prefix_pos.length ? channel_prefix_pos[i+2]-channel_prefix_pos[i]:0 );
+				IJ.log("x_deplace : " + x_deplace[i]+" inter: "+ dist_inter+" relative head : "+  relative_headPosition[j]);
 				ImageStack originalStack = sp.crop(x_deplace[i], relative_headPosition[j] , roi_width, height_align_min);
 				int x = 0;
 				for(int k=1; k <= depth; k++)
@@ -271,11 +273,9 @@ public class Ins_param implements Serializable{
 				slice = slice + 1;
 				channel = channel + 1;
 			}
-			return new ImagePlus(img.getTitle()+"-"+getPositionName()+"-ss-"+String.valueOf(img.getImageStackSize())+"-roi-"+getRoi_width(), ims);
+			return new ImagePlus(getPositionName()+"-ss-"+String.valueOf(img.getImageStackSize())+"-roi-"+getRoi_width()+"-sx-"+String.valueOf(getStartX()), ims);
 		}
 		
-
-
 		public float getInterChannelLength()
 		{			
 			return interChannelLength;
@@ -318,20 +318,12 @@ public class Ins_param implements Serializable{
 			this.pName = pName;
 		}
 
-	
 		public String toString()
-		{			
-			return "position : " + pName + " rotation : " + angle + " start_x : " + start_x + " start_y : " + start_y + " channel number : " + channelNumber + " Inter channel length : " + interChannelLength;			
+		{
+			return getPositionName();
 		}
-
 		public void setRelative_headPosition(int[] relative_headPosition) {
 			this.relative_headPosition = relative_headPosition;			
 		}
 		
-//		public int[] getRelative_headPosition1()
-//		{
-//			return relative_headPosition;
-//		}
-
-	
 }

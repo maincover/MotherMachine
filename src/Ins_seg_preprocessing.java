@@ -28,7 +28,6 @@ public class Ins_seg_preprocessing {
 	private float inter_channel;//49.45f
 	private float roi_width;
 	private float channel_prefix_pos[];
-	private float[] dynamicInterChannelLength;
 	private Ins_param ins_param; 
 	private int height_align; 
 	
@@ -773,8 +772,11 @@ public class Ins_seg_preprocessing {
 		}
 		if(r_convolv)
 			return first_left_center+windows_s;
+		else {
+			return first_left_center+(int)(windows_s*0.5);
+		}
 		//IJ.log("the minimum difference corresponds the first left center:  "+difference + " first_center: "+first_left_center);		
-		return first_left_center;
+		//return first_left_center;
 	}
 	
 	

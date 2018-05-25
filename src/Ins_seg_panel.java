@@ -3317,10 +3317,11 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 					if(!pArray[p].savedOnce())
 						continue;					
 					Ins_param param_position = pArray[p];										
-					String outputDirectoryPath = path + Prefs.separator + param_position.getPositionName();		
+					String outputDirectoryPath = path + Prefs.separator + param_position.getPositionName()+"-sx-"+String.valueOf(param_position.getStartX());		
 					File dir = new File (outputDirectoryPath);
 					dir.mkdir();
-					System.out.println("mkdir : " + dir.getPath());					
+					System.out.println("mkdir : " + dir.getPath());	
+					IJ.log("mkdir : " + dir.getPath() + " total params : " + pArray.length);
 					File[] files= openFolderDialog(1,mSortByDate.isSelected(),param_position.getPositionName(), path);
 					if(files==null)
 						continue;				
@@ -3351,7 +3352,7 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 					if(impRFP == null)
 						continue;
 
-					saveImgName = param_position.getPositionName()+"-ss-"+imp.getStackSize()+"-roi-"+roi_width;					
+					saveImgName = param_position.getPositionName()+"-ss-"+imp.getStackSize()+"-roi-"+roi_width+"-sx-"+String.valueOf(param_position.getStartX());					
 					if(param_position.ready())
 					{
 						impRFPs = calibrateAndSegmentation(impRFP, param_position);							
@@ -4324,7 +4325,7 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 	
 	public Object[] getRefImages()
 	{
-		String pathDirectory = IJ.getDirectory("image");
+		String pathDirectory = IJ.getDirectory("current");
 		if(pathDirectory == null)
 			pathDirectory = "D:";
 	    File directory=new File(pathDirectory);	    
@@ -4334,12 +4335,12 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 	    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	    
 	    GenericDialog gD = new GenericDialog("Input reference image number");
-	    gD.addNumericField("Input the reference image number", 20, 0);
+	    //gD.addNumericField("Input the reference image number", 20, 0);
+	    gD.addStringField("Input the reference image name, ex, _t10.", "_t10.");
 	    gD.showDialog();
 	    if(gD.wasCanceled())
 	    	return null;
-	    int n = (int)gD.getNextNumber();
-	    
+	    String n = gD.getNextString();
 	    
 	    if (chooser.showOpenDialog(IJ.getInstance()) == JFileChooser.APPROVE_OPTION) { 
 	    	File file = chooser.getSelectedFile();
@@ -4353,9 +4354,20 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 	    		}
 	    	};
 	    	
-	    	
 	    	String[] names = file.list(filter);
-	    	Arrays.sort(names, new Comparator<String>() {
+	    	
+	    	String[] ref_names = new String[names.length];
+	    	int j = 0;
+	    	for(int i=0 ; i< names.length; i++)
+	    	{
+	    		if (names[i].indexOf(n)>0)
+	    			ref_names[j++] = names[i];
+	    	}
+	    	
+	    	String[] names_new = new String[j];
+	    	System.arraycopy(ref_names, 0, names_new, 0, j);
+	    	
+	    	Arrays.sort(names_new, new Comparator<String>() {
 	    		public int compare(String arg0, String arg1) {
 	    			int n1 = extractNumber(arg0);
 	    			int n2 = extractNumber(arg1);
@@ -4364,27 +4376,27 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 	    		private int extractNumber(String name) {
 	    			int i = 0;
 	    			try {
-	    				int s = name.lastIndexOf('y') + 1;
-	    				int e = name.lastIndexOf('t');
-	    				String number = name.substring(s, e);		    			
-	    				i = Integer.parseInt(number);
+	    				int s = name.lastIndexOf("_s") + 2;
+	    				int e = name.lastIndexOf("_t");
+	    				String number = name.substring(s, e);
+	    				int i0 = Integer.parseInt(number);
+	    				
+    					int s1 = name.lastIndexOf("_t") + 2;
+	    				int e1 = name.lastIndexOf('.');
+	    				String number1 = name.substring(s1, e1);		    			
+	    				int i1 = Integer.parseInt(number1);
+
+	    				i = i0*100000+ i1;
 	    			} catch(Exception e) {
-	    				try {
-	    					int s = name.lastIndexOf("_t") + 1;
-		    				int e1 = name.lastIndexOf('.');
-		    				String number = name.substring(s, e1);		    			
-		    				i = Integer.parseInt(number);
-						} catch (Exception e2) {
-							i=0;
-						}
+	    				i = 0;
 	    			}
 	    			return i;
 	    		}
 	    	});
 
-	    	ImagePlus[] imp = new ImagePlus[names.length];
+	    	ImagePlus[] imp = new ImagePlus[names_new.length];
 	    	int i=0;
-	    	for(String name : names)
+	    	for(String name : names_new)
 	    	{
 	    		String path = file.getPath() +Prefs.getFileSeparator()+ name;
 	    		System.out.println("reference image path : " + path);

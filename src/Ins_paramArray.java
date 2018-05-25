@@ -99,12 +99,12 @@ public class Ins_paramArray extends JPanel implements ActionListener{
 			try {
 				title[i] = title[i].substring(0, title[i].lastIndexOf("."));				
 				title[i] = title[i].substring(title[i].lastIndexOf("xy"), title[i].lastIndexOf('t'));
-				System.out.println(title[i]);
+				//System.out.println(title[i]);
 				//IJ.showMessage(title[i]);	
 			} catch (Exception e) {
 				try {									
 					title[i] = title[i].substring(title[i].lastIndexOf('s'), title[i].lastIndexOf("_t"));	
-					System.out.println(title[i]);
+					//System.out.println(title[i]);
 					//IJ.showMessage(title[i]);
 				} catch (Exception e2) {
 					title[i] = title[i].substring(0, title[i].lastIndexOf("_t"));;
@@ -235,7 +235,7 @@ public class Ins_paramArray extends JPanel implements ActionListener{
 			paramsArray[currentIndex].setPositionName(title[currentIndex]);
 			drawGridLines(getParams(currentIndex));
 			System.out.println(paramsArray[currentIndex]);
-			IJ.log("save parameters into " + impRef[currentIndex].getTitle());
+			IJ.log("save parameters into " + impRef[currentIndex].getTitle() + " total params : "+ paramsArray.length);
 		}
 		
 		if(label.equals("Save to file..."))
@@ -319,6 +319,7 @@ public class Ins_paramArray extends JPanel implements ActionListener{
 						
 			for(Ins_param p : paramsArray)
 			{
+				IJ.log(p.toString() + " path : " + fDirectory.getPath());
 				File[] fFluo = listFileinFolder(p.getPositionName(), fDirectory.getPath());
 				if(fFluo.length < 1)
 				{
@@ -339,7 +340,7 @@ public class Ins_paramArray extends JPanel implements ActionListener{
 				ImagePlus impFluo = loadImpFromFileList(fFluo, folderName); 
 				if(p.ready())
 				{
-					File rFile = new File(fDirectory.getPath()+File.separator+p.getPositionName());
+					File rFile = new File(fDirectory.getPath()+File.separator+p.getPositionName()+"-sx-"+String.valueOf(p.getStartX()));
 					rFile.mkdirs();					
 					ImagePlus impRFP = Ins_seg_panel.calibrateAndSegmentation(impFluo,p);					
 					impRFP.show();
