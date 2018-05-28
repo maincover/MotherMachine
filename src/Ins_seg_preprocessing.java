@@ -1,21 +1,23 @@
 
 import java.awt.Color;
 import java.awt.Rectangle;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.gui.Line;
-import ij.gui.PointRoi;
-import ij.gui.Roi;
-import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
 import Ij_Plugin.Ins_find_peaks;
 import Stabilizer.Ins_param;
 import Stabilizer.Ins_stabilizer;
 import Threshold.Auto_Threshold_v;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.gui.Line;
+import ij.gui.Roi;
+import ij.measure.CurveFitter;
+import ij.process.ByteProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 
 
 public class Ins_seg_preprocessing {
@@ -110,7 +112,7 @@ public class Ins_seg_preprocessing {
 					1,0,-1
 			};
 			
-			int width_align = ins_param.getWidth_align();
+			//int width_align = ins_param.getWidth_align();
 			int height_align = ins_param.getHeight_align();
 			float[] f_s = ins_param.getchannel_prefix_pos();
 			int width_crop_image = (int)f_s[f_s.length-1];
@@ -119,14 +121,9 @@ public class Ins_seg_preprocessing {
 			int height = im.getHeight();
 			
 
-			if(width < width_align)
-			{
-				IJ.error("cropped width is bigger than original width");
-				return null;
-			}
 			
 			//-----------------------Step 1, Update the inter-distance between channels--------------
-			int pSize = 40;
+			int pSize = 100;
 			if (pSize >= img.getStackSize())
 				pSize = img.getStackSize();
 			
@@ -264,8 +261,62 @@ public class Ins_seg_preprocessing {
 				System.out.println("inter distance : " + j_save + " count :" + max_diff);
 			}
 			ins_param.update_channel_prefix_pos(xDiff_max);
+			int width_align = ins_param.getWidth_align();
+			if(width < width_align)
+			{
+				IJ.error("cropped width is bigger than original width");
+				return null;
+			}
 			
 			// --------------------End Step 1 ------------------------------
+			// ---------------------Step 1-2 Fit curver to get rid of outlier
+			double[] sorted_xDiff = new double[xDiff_max.length];
+			System.arraycopy(xDiff_max, 0, sorted_xDiff, 0, xDiff_max.length);
+			Arrays.sort(sorted_xDiff);
+			double median = sorted_xDiff[sorted_xDiff.length/2 - 1>=0?sorted_xDiff.length/2 - 1:0];
+			double[] x_diff = new double[xDiff_max.length];
+			System.arraycopy(xDiff_max, 0, x_diff, 0, x_diff.length);
+			for(int i=0; i<x_diff.length;i++)
+			{
+				if((xDiff_max[i] - median) >= 5) // get rid of some outliers for fitting
+				{
+					x_diff[i] = median;
+				}
+			}
+			
+			
+			double[] xData = new double[xDiff_max.length];
+			double[] yData = new double[xDiff_max.length];
+			for(int i=0; i<xData.length ; i++ )
+			{
+				xData[i] = i+1;
+				yData[i] = xDiff_max[i];
+			}
+			CurveFitter cF = new CurveFitter(xData, yData);
+			cF.doFit(CurveFitter.POLY3);
+			IJ.log(cF.getStatusString()+ " good fitness : "+ cF.getFitGoodness());
+			
+			double[] residual = cF.getResiduals();
+			double sd_residual = cF.getSD();
+			for(int i=0; i<residual.length;i++)
+			{
+				double z_score = residual[i]/sd_residual;
+				IJ.log("(Inter) Original value at :  "+ i + " is "+ yData[i] + " fitted value "+ cF.f(xData[i]) +" residual : " + residual[i]+  " sd :"+ sd_residual+  " zscore: " + z_score);
+				if(Math.abs(z_score) >= 1.0)
+				{
+					double n_v =  cF.f(xData[i]);
+					System.out.println("Change the outlier at point i "+ i + " value of "+ yData[i] + " by value of "+ n_v);
+					IJ.log("	(Inter)Change the outlier at point i "+ i + " value of "+ yData[i] + " by value of "+ n_v);
+					yData[i] = n_v;
+				}
+			}
+			for(int i=0; i<xDiff_max.length-1;i++)
+			{
+				System.out.println("(Inter)i: "+ i + " stats_y : " + xDiff_max[i] + " yData : "  + yData[i]);
+			}
+			//ins_param.update_channel_prefix_pos(xDiff_max);
+			
+			// ----------------------End Step 1-2
 			
 			//----------------------Step 2 : estimate relative y position------------------
 			int[][] relativeY=new int[pSize][];
@@ -350,7 +401,38 @@ public class Ins_seg_preprocessing {
 				System.out.println("value y : " + j_sav);;
 			}
 			//------------End Step 2------------------
+			//-------------Step 2-3 curve fitting to get rid of outlier------
+			xData = new double[stats_y.length - 1];
+			yData = new double[stats_y.length - 1];
+			for(int i=0; i<xData.length ; i++ )
+			{
+				xData[i] = i+1;
+				yData[i] = stats_y[i];
+			}
+			cF = new CurveFitter(xData, yData);
+			cF.doFit(CurveFitter.POLY3);
+			IJ.log(cF.getStatusString()+ " good fitness : "+ cF.getFitGoodness());
 			
+			residual = cF.getResiduals();
+			sd_residual = cF.getSD();
+			for(int i=0; i<residual.length;i++)
+			{
+				double z_score = residual[i]/sd_residual;
+				IJ.log("Original value at :  "+ i + " is "+ yData[i] + " fitted value "+ cF.f(xData[i]) +" residual : " + residual[i]+  " sd :"+ sd_residual+  " zscore: " + z_score);
+				if(Math.abs(z_score) >= 1.0)
+				{
+					double n_v =  cF.f(xData[i]);
+					System.out.println("Change the outlier at point i "+ i + " value of "+ yData[i] + " by value of "+ n_v);
+					IJ.log("	Change the outlier at point i "+ i + " value of "+ yData[i] + " by value of "+ n_v);
+					yData[i] = n_v;
+				}
+			}
+			for(int i=0; i<stats_y.length-1;i++)
+			{
+				System.out.println("i: "+ i + " stats_y : " + stats_y[i] + " yData : "  + yData[i]);
+			}
+			
+			//-------------End step 2-3-----------------
 			
 			//---------------Step 3 re-estimate the crop image position---------------
 			int max_relative = 0;
@@ -408,7 +490,7 @@ public class Ins_seg_preprocessing {
 						int countZero = 0;
 						if(v<0 || v>=height)
 							continue;						
-						for(int u=startX_ref*3;u<width*0.8;u++)
+						for(int u=startX_ref;u<startX_ref+width_crop_image;u++)
 						{
 							if(u<0 || u>= width)
 								continue;							
