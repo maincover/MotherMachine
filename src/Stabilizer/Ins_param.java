@@ -56,12 +56,12 @@ public class Ins_param implements Serializable{
 		
 		public void update_channel_prefix_pos(float[] interDynamic)
 		{
-			assert interDynamic.length == channelNumber-1;
+			assert interDynamic.length == channelNumber;
 			channel_prefix_pos=new float[2*channelNumber];		
 			channel_prefix_pos[0]=0;	
 			for(int i=2; i < channel_prefix_pos.length;i=i+2)
 			{
-				channel_prefix_pos[i] = channel_prefix_pos[i-2]+interDynamic[(i-2)/2];
+				channel_prefix_pos[i] = interDynamic[i/2];
 			}
 			for(int i=1; i < channel_prefix_pos.length;i=i+2)
 			{

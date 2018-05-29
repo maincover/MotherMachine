@@ -1,8 +1,6 @@
 
 import java.awt.Color;
 import java.awt.Rectangle;
-import java.lang.reflect.Array;
-import java.util.ArrayList;
 import java.util.Arrays;
 
 import Ij_Plugin.Ins_find_peaks;
@@ -225,17 +223,15 @@ public class Ins_seg_preprocessing {
 				}
 			}
 			
-			float[][] xDiff = new float[pos_refine_l_array[0].length-1][width];
+			float[][] xDiff = new float[pos_refine_l_array[0].length][width];
 			
 			for(int i=0;i<pSize; i++)
 			{
-				//xDiff[(int)pos_refine_l[i][0]]++;
-				//xDiff[(int)pos_refine_r[i][0]]++;
-				for(int j=0; j<pos_refine_l_array[i].length-1;j++)
+				for(int j=0; j<pos_refine_l_array[i].length;j++)
 				{
-					float diff = pos_refine_l_array[i][j+1]-pos_refine_l_array[i][j];
+					float diff = pos_refine_l_array[i][j]-pos_refine_l_array[i][0];
 					xDiff[j][(int)(diff)]++;
-					diff = pos_refine_r_array[i][j+1]-pos_refine_r_array[i][j];
+					diff = pos_refine_r_array[i][j]-pos_refine_r_array[i][0];
 					xDiff[j][(int)(diff)]++;					
 				}
 			}
@@ -270,7 +266,7 @@ public class Ins_seg_preprocessing {
 			
 			// --------------------End Step 1 ------------------------------
 			// ---------------------Step 1-2 Fit curver to get rid of outlier
-			double[] sorted_xDiff = new double[xDiff_max.length];
+			/*double[] sorted_xDiff = new double[xDiff_max.length];
 			System.arraycopy(xDiff_max, 0, sorted_xDiff, 0, xDiff_max.length);
 			Arrays.sort(sorted_xDiff);
 			double median = sorted_xDiff[sorted_xDiff.length/2 - 1>=0?sorted_xDiff.length/2 - 1:0];
@@ -313,7 +309,7 @@ public class Ins_seg_preprocessing {
 			for(int i=0; i<xDiff_max.length-1;i++)
 			{
 				System.out.println("(Inter)i: "+ i + " stats_y : " + xDiff_max[i] + " yData : "  + yData[i]);
-			}
+			}*/
 			//ins_param.update_channel_prefix_pos(xDiff_max);
 			
 			// ----------------------End Step 1-2
@@ -329,25 +325,18 @@ public class Ins_seg_preprocessing {
 				ImageProcessor ip_y0 = ip_y0_array[i-1];
 				ImageProcessor ip_y1 = ip_y1_array[i-1];
 				
-				int pos_refine_l = refinePosition(ip_y0, (int)(startX_ref-0.5*roi_width), false);//int pos_refine_l = refinePosition(ip_y0, startX_ref);
-				int pos_refine_r = refinePosition(ip_y1, (int)(startX_ref+roi_width),true);//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
+				float pos_refine_l = refinePosition(ip_y0, (int)(startX_ref-0.5*roi_width), false);//int pos_refine_l = refinePosition(ip_y0, startX_ref);
+				float pos_refine_r = refinePosition(ip_y1, (int)(startX_ref+roi_width),true);//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
 				
 				if(i==1)
 				{
 					float[] pos_x = ins_param.getchannel_prefix_pos();
 					for(int k=0; k<pos_x.length;k=k+2)
-						Ins_seg_panel.addRoiToManager(new Line(pos_refine_l+pos_x[k], 0, pos_refine_l+pos_x[k], ip_y0.getHeight()));
-					
-					for(int k=0;k<pos_x.length;k=k+2)
-					{
-						Roi l2 = new Line(pos_refine_r+pos_x[k], 0, pos_refine_r+pos_x[k], ip_y0.getHeight());
-						//l2.setColor(Color.RED);
-						Ins_seg_panel.addRoiToManager(l2);
-					}
+						Ins_seg_panel.addRoiToManager(new Roi(pos_refine_l+pos_x[k], 0, pos_refine_r-pos_refine_l, ip_y0.getHeight()));
 					
 					new ImagePlus("ip_y1",ip_y1).show();
 					new ImagePlus("ip_y0",ip_y0).show();
-					
+
 					ImageProcessor ip = img.getImageStack().getProcessor(i);
 					ip.setRoi(0, position_v_array[i-1], width, (int)(height_align));
 					new ImagePlus("original",ip.crop()).show();
@@ -357,10 +346,9 @@ public class Ins_seg_preprocessing {
 				
 				double position_x= (pos_refine_l+pos_refine_r)*0.5;
 				int position_v = position_v_array[i-1];
-
-				
+				//float[] position_x = ins_param.getchannel_prefix_pos();
 				ImagePlus eigenSmallestImp = eigenSmallestImp_array[i-1];
-				relativeY[i-1] = refinePositionChannelHead(ins_param, eigenSmallestImp, (int)position_x, position_v, i);
+				relativeY[i-1] = refinePositionChannelHead(ins_param, eigenSmallestImp, (float)position_x, position_v, i);
 			}
 			
 			int[][] pos_relative_y = new int[relativeY[0].length][height];
@@ -402,19 +390,19 @@ public class Ins_seg_preprocessing {
 			}
 			//------------End Step 2------------------
 			//-------------Step 2-3 curve fitting to get rid of outlier------
-			xData = new double[stats_y.length - 1];
-			yData = new double[stats_y.length - 1];
+			double[] xData = new double[stats_y.length - 1];
+			double[] yData = new double[stats_y.length - 1];
 			for(int i=0; i<xData.length ; i++ )
 			{
 				xData[i] = i+1;
 				yData[i] = stats_y[i];
 			}
-			cF = new CurveFitter(xData, yData);
+			CurveFitter cF = new CurveFitter(xData, yData);
 			cF.doFit(CurveFitter.POLY3);
 			IJ.log(cF.getStatusString()+ " good fitness : "+ cF.getFitGoodness());
 			
-			residual = cF.getResiduals();
-			sd_residual = cF.getSD();
+			double[] residual = cF.getResiduals();
+			double sd_residual = cF.getSD();
 			for(int i=0; i<residual.length;i++)
 			{
 				double z_score = residual[i]/sd_residual;
@@ -429,7 +417,7 @@ public class Ins_seg_preprocessing {
 			}
 			for(int i=0; i<stats_y.length-1;i++)
 			{
-				System.out.println("i: "+ i + " stats_y : " + stats_y[i] + " yData : "  + yData[i]);
+				stats_y[i] = (int)(yData[i]);
 			}
 			
 			//-------------End step 2-3-----------------
@@ -513,8 +501,8 @@ public class Ins_seg_preprocessing {
 				ip_y0.convolve(Gx, 3, 3);
 				ip_y1.convolve(Gx2, 3, 3);
 				
-				int pos_refine_l = refinePosition(ip_y0, (int)(startX_ref-0.5*roi_width), false);//int pos_refine_l = refinePosition(ip_y0, startX_ref);
-				int pos_refine_r = refinePosition(ip_y1, (int)(startX_ref+roi_width),true);//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
+				float pos_refine_l = refinePosition(ip_y0, (int)(startX_ref-0.5*roi_width), false);//int pos_refine_l = refinePosition(ip_y0, startX_ref);
+				float pos_refine_r = refinePosition(ip_y1, (int)(startX_ref+roi_width),true);//int pos_refine_r = refinePosition(ip_y1,  (int)(pos_refine_l+channel_prefix_pos[1]*0.3-channel_prefix_pos[0]*0.3));
 				
 				if(i==-1)
 				{
@@ -777,6 +765,12 @@ public class Ins_seg_preprocessing {
 				}				
 			}
 		}
+		/*if(r_convolv)
+		{
+			return first_left_center-windows_s;
+		}else {
+			return first_left_center-(int)(windows_s*0.5);
+		}*/
 		//IJ.log("the minimum difference corresponds the first left center:  "+difference + " first_center: "+first_left_center);		
 		return dynamicStartX;
 	}
@@ -788,8 +782,7 @@ public class Ins_seg_preprocessing {
 	 * @param pos0 approximate position, should be computed using the function positionMaxhisto 
 	 * @return
 	 */
-	public int refinePosition(ImageProcessor ip , int startX_reference, boolean r_convolv){
-		
+	public float refinePosition(ImageProcessor ip , int startX_reference, boolean r_convolv){
 		//float channel_length=channel_prefix_pos[2]-channel_prefix_pos[0];//should be adjusted carefully		
 		int hist[];
 		int w=ip.getWidth();
@@ -852,11 +845,45 @@ public class Ins_seg_preprocessing {
 				//System.out.println("----------StartX :  "+startX + " dis: "+dis);
 			}			
 		}
+		
+		
+		//float[] xc = new float[channel_prefix_pos.length/2];
+		/*for(int i=2; i < channel_prefix_pos.length; i=i+2) // pay attention, here i should be i+2 don't consider all channels, because the last one may be flowed out
+		{
+			float position=channel_prefix_pos[i]+first_left_center;
+			float max = 0f;
+			//now find the maximum around the "position" (range: inter) and
+			//put the distance in the "dis"
+			int j_l = -inter/4;
+			int j_r = inter/4;
+			
+			for(int j=j_l; j <= j_r; j++)
+			{
+				if(position+j>=0 && position+j<hist.length)						
+					if(max < hist[(int)position+j])
+					{
+						max = hist[(int)position+j];
+						xc[i/2] = position + j;
+					}		
+			}// now we have the the maximum local
+		}*/
+		
+		//xc[0] = first_left_center;		
 		if(r_convolv)
-			return first_left_center+windows_s;
-		else {
+		{
+			//for(int i=0;i<xc.length; i++)
+			//{
+			//	xc[xc.length-1] = first_left_center + windows_s;
+			//}
+			return first_left_center+(int)(windows_s*0.5);
+		}else {
+			//for(int i=0;i<xc.length; i++)
+			//{
+			//	xc[xc.length-1] = first_left_center + (int)(windows_s*0.5);
+			//}
 			return first_left_center+(int)(windows_s*0.5);
 		}
+		//return xc;
 		//IJ.log("the minimum difference corresponds the first left center:  "+difference + " first_center: "+first_left_center);		
 		//return first_left_center;
 	}
