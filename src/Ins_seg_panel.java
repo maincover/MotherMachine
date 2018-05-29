@@ -2763,6 +2763,8 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 			stackSize = Integer.valueOf(name[0]);		
 			name = impName.split("-roi-");
 			name = name[1].split(".tif");
+			if(impName.contains("-sx-"))
+				name = name[0].split("-sx-");
 			roi_width = Integer.valueOf(name[0]);
 			widthImp = imp.getWidth();
 		} catch (ArrayIndexOutOfBoundsException e2) {
@@ -3506,7 +3508,7 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 					if(impToseg == null)
 						return;
 				}
-				System.out.println("path of image to process : " +impToseg.getOriginalFileInfo().directory);
+				//System.out.println("path of image to process : " +impToseg.getOriginalFileInfo().directory);
 				impToseg.show();
 				parseImageTitle(impToseg);
 				ArrayList<Roi> rois;
@@ -3524,7 +3526,10 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 				{
 					addRoiToManager(roi);
 				}
-				lineageProcess(impToseg.getOriginalFileInfo().directory,mModeSilence.isSelected());
+				String path = null;
+				if(impToseg.getOriginalFileInfo() != null)
+					path = impToseg.getOriginalFileInfo().directory;
+				lineageProcess(path,mModeSilence.isSelected());
 				return;
 			}
 				
@@ -3543,13 +3548,15 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 				}
 				impToseg.show();
 				parseImageTitle(impToseg);
-				ArrayList<Roi> rois;
+				ArrayList<Roi> rois = null;
 				if(useSPF)
 				{
 					rois = segmentationProcessRFPFromSeeds(impToseg);	
 				}else {
 					rois = segmentationProcessTrans(impToseg);
 				}
+				if(rois == null || rois.isEmpty())
+					return;
 				if(getRoiManager().getCount() > 0)
 					deleteRoiToManager();
 				for(Roi roi : rois)
@@ -4236,7 +4243,10 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 		    	};
 		    	File[] impF = subfolders[i].listFiles(filterN);
 		    	if(impF.length != 1)
+		    	{
+		    		IJ.showMessage("More than one files named -ss- found, please clean the selected folder");
 		    		continue;
+		    	}
 		    	impFiles[i] = impF[0];		    	
 	    	}
 	    		    	
@@ -6101,27 +6111,27 @@ public class Ins_seg_panel extends PlugInFrame implements ActionListener, ItemLi
 		roiManager.setVisible(true);
 		
 		ImagePlus impToLineage = WindowManager.getCurrentImage();
-		int stackSize = 0;
-		int roi_width = Lineage.roi_width;
+		//int stackSize = 0;
+		//int roi_width = Lineage.roi_width;
 		double filamentRatio = 2.4;		
 		boolean allCellsInFirstChannel = false;
 
 		if(mConsiderAllFirstChannelCells.isSelected())
 			allCellsInFirstChannel = true;		
 		boolean writeResultTable = false;
-		try {			
+		parseImageTitle(impToLineage);
+		/*try {			
 			String impName = impToLineage.getTitle();
 			String[] name = impName.split("-ss-");				
 			name = name[1].split("-roi-");
 			stackSize = Integer.valueOf(name[0]);		
-			name = impName.split("-roi-");
+			if(impName.contains("-sx-"))
+				name = name[0].split("-sx-");
 			name = name[1].split(".tif");
 			roi_width = Integer.valueOf(name[0]);
-			//correctSegmentationBySeeds = impName.contains("seeds");
-			//correctSegBySeedsOnly = impName.toLowerCase().contains("rfp");
 		} catch (ArrayIndexOutOfBoundsException e2) {
 			IJ.showMessage("Image name doesn't include necessary information! (ss-?-roi-?)");					
-		}
+		}*/
 		//correctSegBySeedsOnly=correctSegmentationBySeeds;
 		
 		GenericDialog genericDialog = new GenericDialog("Information");

@@ -101,7 +101,7 @@ public class Ins_cellsVector {
 	
 	public Ins_cell getCell(int cellNum) 
 	{				
-		if(cellNum <= cells.size())
+		if(cellNum <= cells.size() && cellNum>0)
 			return cells.get(cellNum-1);
 		else {
 			return null;

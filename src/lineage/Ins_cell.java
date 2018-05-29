@@ -22,7 +22,8 @@ import Ij_Plugin.Ins_find_peaks;
 
 public class Ins_cell implements Comparable{	
 	private int slice;	
-	private int length;
+	private int height;
+	private int width;
 	private double skeletonLength;
 	private int[] position;
 	private int timeIndex;
@@ -128,15 +129,14 @@ public class Ins_cell implements Comparable{
 		else {
 			this.label = roi.getName();
 			this.slice = roi.getPosition();		
-			this.length = roi.getBounds().height;
+			this.height = roi.getBounds().height;
+			this.width = roi.getBounds().width;
 			this.roi = roi;
 			this.meanIntensityArray = new double[1];
 			this.areaArray = new double[1];
 			this.parent = null;
-			
 			aggRois = new Roi[10];
 			pointRois = new PointRoi[10];
-			
 			position = new int[]{roi.getBounds().x,roi.getBounds().y};
 			
 			if(position == null)
@@ -251,7 +251,7 @@ public class Ins_cell implements Comparable{
 	public Ins_cell(Roi roi,double xCentroid, double yCentroid,double area,double sumIntensity)
 	{
 		this.roi = roi;
-		this.length = roi.getBounds().height;
+		this.height = roi.getBounds().height;
 		this.label = roi.getName();
 		this.position = new int[]{roi.getBounds().x,roi.getBounds().y};
 		this.xCentroid = xCentroid;
@@ -313,7 +313,8 @@ public class Ins_cell implements Comparable{
 		roi.setPosition(slice);
 		roi.setName(label);
 		roi.setStrokeColor(roi.getStrokeColor());
-		this.length = roi.getBounds().height;
+		this.height = roi.getBounds().height;
+		this.width = roi.getBounds().width;
 		this.position = new int[]{roi.getBounds().x,roi.getBounds().y};
 		this.roi = roi;
 	}
@@ -459,9 +460,9 @@ public class Ins_cell implements Comparable{
 	
 
 	
-	public int getLength()
+	public int getHeight()
 	{
-		return length;
+		return height;
 	}
 	
 	
@@ -485,7 +486,7 @@ public class Ins_cell implements Comparable{
 				timeIndex+"\t"+
 				time+"\t"+
 				cell_num+"\t"+
-				length+"\t"+
+				height+"\t"+
 				skeletonLength+"\t"+
 				sumIntensity + "\t"+
 				meanIntensityBackground  + "\t"+
@@ -549,7 +550,7 @@ public class Ins_cell implements Comparable{
 				timeIndex+"\t"+
 				time+"\t"+				
 				cell_num+"\t"+
-				length+"\t"+
+				height+"\t"+
 				xCentroid + "\t"+
 				yCentroid + "\t"+
 				cellID + 
@@ -580,7 +581,7 @@ public class Ins_cell implements Comparable{
 //				time+"\t"+				
 				cell_num+"\t"+
 //				deadCell+"\t"+
-				length+"\t"+
+				height+"\t"+
 				xCentroid + "\t"+
 				yCentroid + "\t"+
 				area + "\t" + 
@@ -615,7 +616,7 @@ public class Ins_cell implements Comparable{
 				name+"\t" +
 				timeIndex+"\t"+
 				cell_num+"\t"+
-				length+"\t"+
+				height+"\t"+
 				xCentroid + "\t"+
 				yCentroid + "\t"+
 				area + "\t" + 
@@ -676,9 +677,9 @@ public class Ins_cell implements Comparable{
 			}else if (timeIndex > ((Ins_cell) o).timeIndex) {
 				return 1;
 			}else {
-				if(position[1]+length/2 <((Ins_cell) o).position[1]+ ((Ins_cell) o).length/2){
+				if(position[1]+height/2 <((Ins_cell) o).position[1]+ ((Ins_cell) o).height/2){
 					return -1;
-				}else if(position[1]+length/2 >((Ins_cell) o).position[1]+ ((Ins_cell) o).length/2){
+				}else if(position[1]+height/2 >((Ins_cell) o).position[1]+ ((Ins_cell) o).height/2){
 					return 1;
 				}else {
 					if(position[0] < ((Ins_cell) o).position[0])
@@ -890,7 +891,6 @@ public class Ins_cell implements Comparable{
 					position2[position2.length-1] = height;
 					position = position2;
 				}
-				
 				for(int j=0;j < position.length;j++)
 				{						
 					Roi roi2;
@@ -901,7 +901,7 @@ public class Ins_cell implements Comparable{
 						roi2.setPosition(roi.getPosition());
 						roi2.setStrokeColor(roi.getStrokeColor());
 						roi2.setName(roi.getName());
-						this.length = roi2.getBounds().height;
+						this.height = roi2.getBounds().height;
 						this.roi = roi2;
 					}else {
 						h = position[j] - position[j-1];
@@ -916,7 +916,7 @@ public class Ins_cell implements Comparable{
 		}
 	}
 	
-	public void splitCell1(double ratio, Ins_cellsVector[] cellsTimeIndex)
+	public void splitCell(double ratio, Ins_cellsVector[] cellsTimeIndex)
 	{
 		if(!mergedByOr)
 		{
@@ -937,7 +937,7 @@ public class Ins_cell implements Comparable{
 				return;
 			}
 			//ip = (ByteProcessor)roi.getMask();		
-			int cutY = (int)(length*ratio);
+			int cutY = (int)(height*ratio);
 			for(int i=0;i<ip.getWidth();i++)
 			{
 				ip.set(i, cutY, 0);
@@ -946,7 +946,7 @@ public class Ins_cell implements Comparable{
 			Wand wand_upper = new Wand(ip);
 			Wand wand_lower = new Wand(ip);
 			wand_upper.autoOutline(ip.getWidth()/2,(int)(cutY/2));
-			wand_lower.autoOutline(ip.getWidth()/2,(int)(cutY+(length-cutY)*0.5));		
+			wand_lower.autoOutline(ip.getWidth()/2,(int)(cutY+(height-cutY)*0.5));		
 			int nPointsUpper = wand_upper.npoints;
 			int[] upperX = new int[nPointsUpper];
 			int[] upperY = new int[nPointsUpper];
@@ -1306,6 +1306,35 @@ public class Ins_cell implements Comparable{
 	public boolean getEndFlag()
 	{
 		return theEnd;
+	}
+
+	public void divideCellByPoint(int y,Ins_cellsVector[] cellsTimeIndex,double ratio) {
+		double height_u =  y-this.position[1];
+		double ratio_u = height_u/this.height;
+		double height_l = this.position[1]+this.height-y;
+		double ratio_l = height_l/this.height;
+		boolean changed = false;
+		
+		if(ratio_u >= ratio)
+		{
+			Roi roi_upper = new Roi(this.position[0], this.position[1], this.width, height_u);
+			this.setRoi(roi_upper);
+			changed = true;
+		}
+		
+		//System.out.println(" ratio : " + height_/this.height + " height_ " + height_);
+		if(ratio_l >= ratio)
+		{
+			Roi roi_lower = new Roi(this.position[0], y, this.width, height_l);
+			if(changed)
+			{
+				Ins_cell lowerCell = new Ins_cell(roi_lower);
+				Ins_cellsVector currentCellsVector = cellsTimeIndex[getTimeIndex()];
+				currentCellsVector.insertCell(lowerCell);	
+			}else {
+				this.setRoi(roi_lower);
+			}
+		}
 	}
 	
 

@@ -1,5 +1,26 @@
 package lineage;
 
+import java.awt.Color;
+import java.awt.Frame;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.peer.CheckboxMenuItemPeer;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Vector;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import Editor.Ins_editor;
+import cellst.Image.FftBandPassFilter;
+import cellst.Image.ImageFbt;
+import cellst.Main.Fluo_Bac_Tracker;
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -12,10 +33,8 @@ import ij.gui.OvalRoi;
 import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
-import ij.gui.ShapeRoi;
 import ij.gui.Wand;
 import ij.io.DirectoryChooser;
-import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
 import ij.measure.Measurements;
 import ij.measure.ResultsTable;
@@ -31,28 +50,7 @@ import ij.process.FloatPolygon;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.process.ShortProcessor;
-
-import java.awt.Color;
-import java.awt.Frame;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Vector;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-
 import psf.PointSourceDetection;
-import Editor.Ins_editor;
-import cellst.Image.FftBandPassFilter;
-import cellst.Image.ImageFbt;
-import cellst.Main.Fluo_Bac_Tracker;
 
 
 public class Lineage implements PlugIn {
@@ -99,6 +97,8 @@ public class Lineage implements PlugIn {
 			stackSize = Integer.valueOf(name[0]);		
 			name = impName.split("-roi-");
 			name = name[1].split(".tif");
+			if(impName.contains("-sx-"))
+				name = name[0].split("-sx-");
 			roi_width = Integer.valueOf(name[0]);
 			widthImp = imp.getWidth();
 		} catch (ArrayIndexOutOfBoundsException e2) {
@@ -2066,20 +2066,22 @@ public class Lineage implements PlugIn {
 					}
 					a = -1;
 				}else if (t == Roi.FREEROI) {// to merge
-					actualChannel.removeCell(actualCell);
 					int tIndex1 = computeTimeIndex(roi.getBounds().x);
 					int tIndex2 = computeTimeIndex(roi.getBounds().x + roi.getBounds().width);
 					for(int j=tIndex1; j<=tIndex2; j++)
 					{
 						Ins_cellsVector channel = cellsTimeIndex[j];
-						Ins_cell cellMerge = null;
-						Ins_cell cellMerge2 = null;
 						for(int b=0;b<channel.getCellVector().size();b++)
 						{
 							Ins_cell cell1 = channel.getCellVector().get(b);
 							if(cell1.getRoi().getType()!=Roi.RECTANGLE && cell1.getRoi().getType()!=Roi.TRACED_ROI)
 								continue;
-							if(projectRatioLength(cell1, actualCell) > 0)
+							if(cell1 == actualCell)
+								continue;
+							
+							Ins_cell cellMerge = null;
+							Ins_cell cellMerge2 = null;
+							if(CheckPartOfCellInCell(cell1, actualCell))
 							{
 								cellMerge = cell1;									
 								if(b+1 < channel.getCellVector().size())
@@ -2089,29 +2091,86 @@ public class Lineage implements PlugIn {
 										Ins_cell bCell = channel.getCellVector().get(k);
 										if(bCell.getRoi().getType() != Roi.RECTANGLE && bCell.getRoi().getType() != Roi.TRACED_ROI)
 											continue;
-										if(projectRatioLength(bCell, actualCell) > 0)
+										if(CheckPartOfCellInCell(bCell, actualCell))
 										{
 											cellMerge2 = channel.getCellVector().get(k);
 											break;
 										}
 									}
 								}
-								break;
+							}
+							if(cellMerge!=null && cellMerge2 != null)
+							{
+								cellMerge.mergeCell(cellMerge2, cellsTimeIndex, new Color(0,0,255));
+								b=-1;
 							}
 						}
-						if(cellMerge!=null && cellMerge2 != null)
-							cellMerge.mergeCell(cellMerge2, cellsTimeIndex, new Color(0,0,255));
 					}
-				}else if (t == Roi.POINT) {					
 					actualChannel.removeCell(actualCell);
-					for(int b=0;b<actualChannel.getCellVector().size();b++)
+					a = -1;
+				}else if (t == Roi.POINT) {					
+					//actualChannel.removeCell(actualCell);
+					// two cases :
+					// 1, if the cell is not found, then create a cell from the cell above the point to the bottom cell
+					// 2, if found, separate the cell into two cells, and iterate if multiple points found inside the cell
+					double ratio = 0.1;
+					boolean foundCell = false;
+					if(roi.getPolygon().npoints != 1)
+					{
+						IJ.showMessage("The number of point roi is not one, this roi will be deleted with no effect");
+						actualChannel.removeCell(actualCell);
+						a = -1;
+						continue;
+					}
+					int y = roi.getPolygon().ypoints[0];
+					for(int b=0; b<actualChannel.getCellVector().size(); b++)
 					{
 						Ins_cell bctualCell = actualChannel.getCellVector().get(b);
 						Roi bRoi = bctualCell.getRoi();
-						//System.out.println("b : " + b + " size : " + actualChannel.getCellVector().size() + " y: " + bRoi.getBounds().y);
+						if(bRoi.getType() != Roi.RECTANGLE && bRoi.getType() != Roi.TRACED_ROI)// priority for point roi instead of Line roi
+							continue;			
+						// use 3 because if the user wants to create a new cell and if the point touched the line
+						if(y >= bRoi.getBounds().y+3 && y <= bRoi.getBounds().y + bRoi.getBounds().height)
+						{
+							foundCell = true;
+							bctualCell.divideCellByPoint(y, cellsTimeIndex, ratio);
+							break;
+						}
+					}
+					if(!foundCell)//check if the upper and lower cell is existed
+					{						
+						int x_timeIndex = actualCell.getTimeIndex()*(roi_width+blankwidth);
+						Ins_cell uCell = actualChannel.getCell(actualCell.getCellNumber() - 1);
+						Ins_cell lCell = actualChannel.getCell(actualCell.getCellNumber() + 1);
+						int y_u = 0;
+						if(uCell!=null)
+						{
+							y_u = uCell.getPosition()[1]+uCell.getHeight();
+						}
+						int y_l = imp.getHeight();
+						if(lCell!=null)
+						{
+							y_l = lCell.getPosition()[1];
+						}
+						Roi roi_upper = new Roi(x_timeIndex, y_u, roi_width, y-y_u);
+						Ins_cell cell_upper = new Ins_cell(roi_upper);
+						Roi roi_lower = new Roi(x_timeIndex, y, roi_width, y_l-y);
+						Ins_cell cell_lower = new Ins_cell(roi_lower);
+						if(cell_upper.getHeight() > 5)
+							actualChannel.insertCell(cell_upper);
+						if(cell_lower.getHeight() > 5)
+							actualChannel.insertCell(cell_lower);
+					}
+					actualChannel.removeCell(actualCell);
+					a = -1;
+					/*for(int b=0;b<actualChannel.getCellVector().size();b++)
+					{
+						Ins_cell bctualCell = actualChannel.getCellVector().get(b);
+						Roi bRoi = bctualCell.getRoi();
 						if(bRoi.getType() != Roi.RECTANGLE && bRoi.getType() != Roi.TRACED_ROI)// priority for point roi instead of Line roi
 							continue;						
 						// actual Roi is Line, then compute the ratio on the rectancular Roi
+						//bRoi.contains(bRoi.getPolygon().xpoints[0], y)
 						if(roi.getBounds().y >= bRoi.getBounds().y && roi.getBounds().y <= bRoi.getBounds().y + bRoi.getBounds().height)
 						{
 							ImageProcessor ip = imp.getImageStack().getProcessor(bRoi.getPosition());
@@ -2119,8 +2178,7 @@ public class Lineage implements PlugIn {
 							bctualCell.divideCell(ip.crop(),cellsTimeIndex);
 							break;
 						}
-					}
-					a = -1;
+					}*/
 				}
 			}
 		}
@@ -2873,12 +2931,12 @@ public class Lineage implements PlugIn {
 				// 4, cell has NO next, no bottom, neither top cell,
 				if(actualCell.nextCell!=null && actualCell.nextCell.previousLowerCell!=null)
 				{
-					growth_rate = Math.max((double)actualCell.nextCell.getLength()/(double)actualCell.getLength(), (double)actualCell.nextCell.getLength()/(double)actualCell.nextCell.previousLowerCell.getLength());
+					growth_rate = Math.max((double)actualCell.nextCell.getHeight()/(double)actualCell.getHeight(), (double)actualCell.nextCell.getHeight()/(double)actualCell.nextCell.previousLowerCell.getHeight());
 				}else if(actualCell.nextCell!=null)
 				{
-					growth_rate = (double)actualCell.nextCell.getLength()/(double)actualCell.getLength();
+					growth_rate = (double)actualCell.nextCell.getHeight()/(double)actualCell.getHeight();
 				}else if (actualCell.nextTopCell!=null && actualCell.nextBottomCell!=null) {
-					growth_rate = (double)(actualCell.nextTopCell.getLength() + actualCell.nextBottomCell.getLength())/(double)actualCell.getLength();
+					growth_rate = (double)(actualCell.nextTopCell.getHeight() + actualCell.nextBottomCell.getHeight())/(double)actualCell.getHeight();
 				}else if(actualCell.previousCell != null){
 					growth_rate = actualCell.previousCell.getEstimatedGrowthRate();
 				}
@@ -2893,10 +2951,10 @@ public class Lineage implements PlugIn {
 				double growthCDiff = 0;
 				if(actualCell.nextCell!=null)
 				{
-					growthDiff = actualCell.nextCell.getLength() - actualCell.getLength();
+					growthDiff = actualCell.nextCell.getHeight() - actualCell.getHeight();
 					growthCDiff = actualCell.nextCell.getYcenter() - actualCell.getYcenter();
 				}else if (actualCell.nextTopCell!=null && actualCell.nextBottomCell!=null) {
-					growthDiff = (double)(actualCell.nextTopCell.getLength() + actualCell.nextBottomCell.getLength())- (double)actualCell.getLength();
+					growthDiff = (double)(actualCell.nextTopCell.getHeight() + actualCell.nextBottomCell.getHeight())- (double)actualCell.getHeight();
 					growthCDiff = (double)(actualCell.nextTopCell.getYcenter() + actualCell.nextBottomCell.getYcenter())- (double)actualCell.getYcenter();
 				}else if(actualCell.previousCell!=null){
 					growthDiff = actualCell.previousCell.getGrowthDiff()*actualCell.getEstimatedGrowthRate();
@@ -3041,7 +3099,7 @@ public class Lineage implements PlugIn {
 					if(actualCell.filamentChecked())
 						break;
 															
-					if(actualCell.getLength() > filamentLength)
+					if(actualCell.getHeight() > filamentLength)
 					{	
 						actualCell.setFilamentState(true, filamentColor);						
 						//forward
@@ -3083,7 +3141,7 @@ public class Lineage implements PlugIn {
 		}		
 		
 		
-		if(actualCell.getLength() < 1.055*nextCell.getLength() || (actualCell.getLength() <= 1.5*nextCell.getLength() &&centerMovement(actualCell, nextCell) <= 0.1))//in case sometimes the next cell can be lightly smaller than the current cell, decision: the current cell is not divided into two cells, but exception for filament
+		if(actualCell.getHeight() < 1.055*nextCell.getHeight() || (actualCell.getHeight() <= 1.5*nextCell.getHeight() &&centerMovement(actualCell, nextCell) <= 0.1))//in case sometimes the next cell can be lightly smaller than the current cell, decision: the current cell is not divided into two cells, but exception for filament
 		{
 			actualCell.nextCell = nextCell;
 			nextCell.previousCell = actualCell;
@@ -3113,7 +3171,7 @@ public class Lineage implements PlugIn {
 			nextCell.name = actualCell.name;				
 			nextCell.setifLastCell(currentVectorSize);
 
-			if(lowerCell!=null && lowerCell.parent!=null && 1.6* actualCell.getLength() < nextCell.getLength() && lowerCell.getLength() < nextCell.getLength()&&(actualCell.getLength()+lowerCell.getLength())<nextCell.getLength()*1.2) //if the cell is growed too much faster, can be an error of the lineage
+			if(lowerCell!=null && lowerCell.parent!=null && 1.6* actualCell.getHeight() < nextCell.getHeight() && lowerCell.getHeight() < nextCell.getHeight()&&(actualCell.getHeight()+lowerCell.getHeight())<nextCell.getHeight()*1.2) //if the cell is growed too much faster, can be an error of the lineage
 			{
 				nextCell.previousLowerCell = lowerCell;	
 				lowerCell.nextCell = nextCell;
@@ -3150,8 +3208,8 @@ public class Lineage implements PlugIn {
 				nextCellBottom = cellsTimeIndex[actualTimeIndex+1].getCell(nextCell.getCellNumber()-1);
 			}			
 			
-			if((nextCellBottom != null && nextCellBottom.parent==null && (nextCellBottom.getLength() + nextCell.getLength()) > actualCell.getLength() * 1.55) || 
-					(nextCellBottom==null && actualCell.getLength() < 1.25*nextCell.getLength()) || (nextCellBottom != null && maxProjectRatio(actualCell, nextCellBottom) == 0)) // add length condition, the total length of the two cells should be longer than the actual cell but not too long
+			if((nextCellBottom != null && nextCellBottom.parent==null && (nextCellBottom.getHeight() + nextCell.getHeight()) > actualCell.getHeight() * 1.55) || 
+					(nextCellBottom==null && actualCell.getHeight() < 1.25*nextCell.getHeight()) || (nextCellBottom != null && maxProjectRatio(actualCell, nextCellBottom) == 0)) // add length condition, the total length of the two cells should be longer than the actual cell but not too long
 			{
 				actualCell.nextCell = nextCell;
 				nextCell.previousCell = actualCell;
@@ -3281,7 +3339,7 @@ public class Lineage implements PlugIn {
 				Ins_cell actualCell = actualChannel.getCell(a);								
 				if(actualCell == null || actualCell.parent==null)
 					continue;
-				v.add(actualCell.getLength());
+				v.add(actualCell.getHeight());
 			}
 		}
 		return v;
@@ -3377,6 +3435,22 @@ public class Lineage implements PlugIn {
 		int maxY = Math.max(y1+l1, y2+l2);
 		int s = maxY-minY - Math.abs(y1-y2)-Math.abs(y1+l1-y2-l2);		
 		return s>0?(double)s/(double)l1:0;
+	}
+	
+	private boolean CheckPartOfCellInCell(Ins_cell baseCell, Ins_cell nextCell) {
+		Roi base = baseCell.getRoi();
+		Roi target = nextCell.getRoi();
+		FloatPolygon fpolygon = target.getInterpolatedPolygon(2, false);
+		float[] xpoints = fpolygon.xpoints;
+		float[] ypoints = fpolygon.ypoints;
+		for(int i=0; i<xpoints.length;i++)
+		{
+			boolean c = base.contains((int)xpoints[i], (int)ypoints[i]);
+			if(c)
+				return true;
+		}
+		return false;
+		
 	}
 	
 	private double maxProjectRatio(Ins_cell lowerCell, Ins_cell nextCell) {
@@ -3514,7 +3588,7 @@ public class Lineage implements PlugIn {
 	}
 	public static int computeTimeIndex(double x)
 	{
-		int timeIndex = (int)(x/(roi_width + blankwidth));//((int) x)/(roi_width + blankwidth);
+		int timeIndex = (int)(x/(roi_width + blankwidth));
 		if(timeIndex < 0)
 			timeIndex = 0;
 		return timeIndex;
