@@ -264,8 +264,9 @@ public class Lineage implements PlugIn {
 		ImagePlus impFFT=null;
 		if(writeResultTable)
 		{	
-			impFFT = fftFromOriginal(imp);
-			IJ.save(impFFT, outputDirectoryPath+"fft-"+imp.getShortTitle()+".tif");
+			//impFFT = fftFromOriginal(imp);
+			impFFT = imp;
+			IJ.save(impFFT, outputDirectoryPath+imp.getShortTitle()+".tif");
 			
 		}
 		for(int slice = 1;slice <= stackVolume; slice += increment)//stackVolumeqsdfqsdf
@@ -537,7 +538,36 @@ public class Lineage implements PlugIn {
 			System.arraycopy(roisArrayToManager[slice-1], 0, roiTemp, 0, roisArrayToManager[slice-1].length);
 			System.arraycopy(aggRoi, 0, roiTemp, roisArrayToManager[slice-1].length, aggRoi.length);
 			roisArrayToManager[slice-1] = roiTemp;
-		}else if (writeResultTable) {	
+		}else if(writeResultTable && increment ==1)
+		{
+			String name = "transLineage";
+			int sliceMid = slice;			
+			String nameL = "slice-" + String.valueOf(sliceMid) + "-" + name+"-"+imp.getShortTitle();
+			Ins_editor logEditor = new Ins_editor();
+			logEditor.setTitle(nameL);
+			ImageProcessor ip = impFFT.getImageStack().getProcessor(sliceMid);
+			logEditor.append("cell_label"+"\t"+
+					"last_cell" + "\t"+	 // check if it's the last cell add
+					"name"+"\t" +
+					"timeIndex"+"\t"+
+					"cell_num"+"\t"+						
+					"length"+"\t"+
+					"xCenter"+"\t"+
+					"yCenter"+"\t"+
+					"cell_area" + "\t"+
+					"meanIntensity"  + "\t"+							
+					"medianIntensity"  + "\t"+
+					"min" + "\t" + 
+					"max" + "\t" +
+					"h5"  + "\t" +
+					"h25" + 
+					"\t"+ "\r"+"\n");
+			wrtieResultTologEditorYifan(cellsTimeIndex[slice-1], logEditor,ip);
+			logEditor.setPath(outputDirectoryPath+nameL+".txt");
+			IJ.log("save file : " + outputDirectoryPath+nameL+".txt");
+			logEditor.save();
+		}
+		else if (writeResultTable) {	
 			// preprocessing imp to get fft-toOriginalImage,
 			String name = "";
 			int sliceMid = -1;
@@ -600,7 +630,7 @@ public class Lineage implements PlugIn {
 		return count;
 	}
 	
-	private ImagePlus fftFromOriginal(ImagePlus imp) {
+	private ImagePlus fftFromOriginal1(ImagePlus imp) {
 		ImageStack ims = imp.getImageStack();
 		int height = imp.getHeight();
 		FftBandPassFilter fftBandPassFilter = new FftBandPassFilter();
@@ -657,8 +687,8 @@ public class Lineage implements PlugIn {
 		ImageJ ij = new ImageJ();
 		ImagePlus imp = IJ.openImage();
 		Lineage lineage = new Lineage(imp);
-		ImagePlus impFFT = lineage.fftFromOriginal(imp);
-		impFFT.show();
+		//ImagePlus impFFT = lineage.fftFromOriginal(imp);
+		//impFFT.show();
 		
 	}
 	
@@ -733,7 +763,12 @@ public class Lineage implements PlugIn {
 			Arrays.sort(numArray2);
 			double median;
 			double median2;
-			if (numArray.length % 2 == 0)
+			if(numArray.length==0)
+			{
+				median = 0;
+				median2 = 0;
+			}
+			else if (numArray.length % 2 == 0)
 			{
 			    median = ((double)numArray[numArray.length/2] + (double)numArray[numArray.length/2 - 1])/2;
 			    median2 = ((double)numArray2[numArray.length/2] + (double)numArray2[numArray.length/2 - 1])/2;
